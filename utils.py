@@ -164,9 +164,6 @@ def process_exam2(image_path):
     return results
 
 
-import cv2
-import numpy as np
-
 def process_exam(image_path):
     img = cv2.imread(image_path)
     height, _, _ = img.shape
@@ -194,7 +191,63 @@ def process_exam(image_path):
 
             largest_cnt = max(contours, key=cv2.contourArea)
             x, y, w, h = cv2.boundingRect(largest_cnt)
-            answer_box = cell[y:y+h, x:x+w]
+            answer_box = cell[y:y + h, x:x + w]
+            answer_cell_height = answer_box.shape[0] // 2
+            answer_cell_width = answer_box.shape[1] // 4
+
+            answer_array = []
+
+            for ans_row in range(2):
+                for ans_col in range(4):
+                    y1_ans = ans_row * answer_cell_height
+                    y2_ans = (ans_row + 1) * answer_cell_height
+                    x1_ans = ans_col * answer_cell_width
+                    x2_ans = (ans_col + 1) * answer_cell_width
+                    answer_cell = answer_box[y1_ans:y2_ans, x1_ans:x2_ans]
+
+                    gray_ans = cv2.cvtColor(answer_cell, cv2.COLOR_BGR2GRAY)
+                    _, thresh_ans = cv2.threshold(gray_ans, 120, 255, cv2.THRESH_BINARY_INV)
+                    black_pixels = np.sum(thresh_ans == 255)
+                    total_pixels = thresh_ans.size
+                    percentage = black_pixels / total_pixels
+                    if percentage > 0.3:
+                        answer_array.append(1)
+                    else:
+                        answer_array.append(0)
+
+            question_number = len(results)
+            results[question_number] = answer_array
+
+    return results
+
+def process_exam_2(image_path):
+    img = cv2.imread(image_path)
+    height, _, _ = img.shape
+    cropped_img = img[height // 5:, :]
+
+    cell_height = cropped_img.shape[0] // 4
+    cell_width = cropped_img.shape[1] // 4
+    results = {}
+
+    for row in range(4):
+        for col in range(4):
+            y1 = row * cell_height
+            y2 = (row + 1) * cell_height
+            x1 = col * cell_width
+            x2 = (col + 1) * cell_width
+            cell = cropped_img[y1:y2, x1:x2]
+
+            gray = cv2.cvtColor(cell, cv2.COLOR_BGR2GRAY)
+            _, thresh = cv2.threshold(gray, 120, 255, cv2.THRESH_BINARY_INV)
+            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            # Check if contours list is not empty
+            if not contours:
+                continue
+
+            largest_cnt = max(contours, key=cv2.contourArea)
+            x, y, w, h = cv2.boundingRect(largest_cnt)
+            answer_box = cell[y:y + h, x:x + w]
             answer_cell_height = answer_box.shape[0] // 2
             answer_cell_width = answer_box.shape[1] // 4
 
@@ -311,10 +364,13 @@ def process_exam_barcode(img_Path):
     ids = barcodeData.split('_')
     student_id = ids[0]
     exam_id = ids[1]
+    paperSize = ids[2]
+    examType = ids[3]
     # return the student id and the exam id
-    return student_id, exam_id
+    return student_id, exam_id, paperSize, examType
 
-def CompareResults(results,correction):
+
+def CompareResults(results, correction):
     # compare the results with the correction
     # return the number of correct answers
     correct = 0
@@ -322,6 +378,7 @@ def CompareResults(results,correction):
         if results[i] == correction[i]:
             correct += 1
     return correct
+
 
 def compare_dicts(dict1, dict2):
     if len(dict1) != len(dict2):

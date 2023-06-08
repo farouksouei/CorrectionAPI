@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from requests import post
 from utils import download_pdf_from_url, pdf_buffer_to_images, process_exam, download_pdf, process_exam2, \
-    process_exam_barcode, CompareResults, compare_dicts, calculate_grade
+    process_exam_barcode, CompareResults, compare_dicts, calculate_grade, process_exam_2
 import json
 
 app = FastAPI()
@@ -26,16 +26,23 @@ async def root(tempExamId: str):
     # process each page
     results = []
     for img_path in img_paths:
-        studentId, examId = process_exam_barcode(img_path)
+        studentId, examId, paperSize, examType = process_exam_barcode(img_path)
         print(examId)
         print(studentId)
+        print(paperSize)
+        print(examType)
         # fetch the correct answers from the database
         payload2 = {"id": examId}
         response2 = post(url2, json=payload2)
         correctAnswers = response2.json()
-        examAnswers = process_exam(img_path)
+        if paperSize == "A4":
+            examAnswers = process_exam(img_path)
+        else:
+            examAnswers = process_exam_2(img_path)
         # compare the results
         correctAnswers = correctAnswers['data'][0]
+        print(correctAnswers)
+        print(examAnswers)
         print(calculate_grade(correctAnswers, examAnswers))
         payload3 = {"examId": examId, "studentId": studentId, "grade": calculate_grade(correctAnswers, examAnswers)}
         response3 = post(url3, json=payload3)
@@ -61,7 +68,15 @@ async def say_hello(ExamId: str):
     # process each page
     results = []
     for img_path in img_paths:
-        results.append(process_exam(img_path))
+        studentId, examId, paperSize, examType = process_exam_barcode(img_path)
+        print(studentId)
+        print(examId)
+        print(paperSize)
+        print(examType)
+        if paperSize == "A4":
+            results.append(process_exam(img_path))
+        else:
+            results.append(process_exam_2(img_path))
     print(results)
     # return the results
     json_results = json.dumps(results)
