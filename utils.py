@@ -466,19 +466,23 @@ def calculate_grade_Redaction(image_path):
     x, y, w, h = cv2.boundingRect(largest_contour)
 
     # Step 4: Divide that box into 12 cells: 6 rows and 2 columns
-    cell_width = w // 2
-    cell_height = h // 6
+    cell_width = w // 6
+    cell_height = h // 2
     cells = [
         (x + cell_width * col, y + cell_height * row, cell_width, cell_height)
-        for row in range(6)
-        for col in range(2)
+        for row in range(2)
+        for col in range(6)
     ]
 
     # Step 5: Loop over those cells and test if they are black or white
     grade = 0
-    scale = [0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    scale = [1, 2, 3, 4, 5, 0.25, 6, 7, 8, 9, 10, 0.5]
 
     for i, cell in enumerate(cells):
+        # save the cell image for debugging
+        x, y, w, h = cell
+        cell_image = image[y:y+h, x:x+w]
+        cv2.imwrite(f'cell_{i}.png', cell_image)
         if cell_is_black(cell, gray):
             grade += scale[i]
 
