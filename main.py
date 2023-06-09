@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from requests import post
 from utils import download_pdf_from_url, pdf_buffer_to_images, process_exam, download_pdf, process_exam2, \
-    process_exam_barcode, CompareResults, compare_dicts, calculate_grade, process_exam_2
+    process_exam_barcode, CompareResults, compare_dicts, calculate_grade, process_exam_2, calculate_grade_Red, \
+    calculate_grade_Redaction
 import json
 
 app = FastAPI()
@@ -31,22 +32,28 @@ async def root(tempExamId: str):
         print(studentId)
         print(paperSize)
         print(examType)
-        # fetch the correct answers from the database
-        payload2 = {"id": examId}
-        response2 = post(url2, json=payload2)
-        correctAnswers = response2.json()
-        if paperSize == "A4":
-            examAnswers = process_exam(img_path)
+        if examType == "QCM":
+            # fetch the correct answers from the database
+            payload2 = {"id": examId}
+            response2 = post(url2, json=payload2)
+            correctAnswers = response2.json()
+            if paperSize == "A4":
+                examAnswers = process_exam(img_path)
+            else:
+                examAnswers = process_exam_2(img_path)
+            # compare the results
+            correctAnswers = correctAnswers['data'][0]
+            print(correctAnswers)
+            print(examAnswers)
+            print(calculate_grade(correctAnswers, examAnswers))
+            payload3 = {"examId": examId, "studentId": studentId, "grade": calculate_grade(correctAnswers, examAnswers)}
+            response3 = post(url3, json=payload3)
+            print(response3.json())
         else:
-            examAnswers = process_exam_2(img_path)
-        # compare the results
-        correctAnswers = correctAnswers['data'][0]
-        print(correctAnswers)
-        print(examAnswers)
-        print(calculate_grade(correctAnswers, examAnswers))
-        payload3 = {"examId": examId, "studentId": studentId, "grade": calculate_grade(correctAnswers, examAnswers)}
-        response3 = post(url3, json=payload3)
-        print(response3.json())
+            examGradeTest = calculate_grade_Redaction(img_path)
+            payload3 = {"examId": examId, "studentId": studentId, "grade": examGradeTest}
+            response3 = post(url3, json=payload3)
+            print(response3.json())
     return {"json_results"}
 
 

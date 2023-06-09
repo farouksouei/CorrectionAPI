@@ -6,6 +6,8 @@ import numpy as np
 import pyzbar.pyzbar as pyzbar
 from PyPDF2 import PdfFileReader, PdfFileWriter
 from pdf2image import convert_from_bytes
+from pyzbar.pyzbar import decode
+from pyzbar import pyzbar
 
 
 def save_buffer_as_pdf(buffer, output_file_path):
@@ -362,6 +364,7 @@ def process_exam_barcode(img_Path):
     # process the barcode data we have two ids in the barcode seperated by a _
     # the first id is the student id and the second is the exam id
     ids = barcodeData.split('_')
+    print(barcodeData)
     student_id = ids[0]
     exam_id = ids[1]
     paperSize = ids[2]
@@ -401,3 +404,93 @@ def calculate_grade(correction, answers):
 
     grade = (correct_answers / total_questions) * 20
     return grade
+
+
+def calculate_grade_Red(img_Path):
+    img = cv2.imread(img_Path)
+
+    # Decode the barcode
+    barcodes = pyzbar.decode(img)
+    barcodeData = ''
+
+    # Remove the barcode from the image
+    for barcode in barcodes:
+        barcodeData = barcode.data.decode("utf-8")
+        x, y, w, h = barcode.rect
+        img[y:y + h, x:x + w] = 255
+
+    # Step 1: Find the box with the big borders
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (3, 3), 0)
+    th = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    coords = cv2.findNonZero(th)
+    x, y, w, h = cv2.boundingRect(coords)
+    box = img[y:y + h, x:x + w]
+
+    # Step 2: Divide this box into 6 rows and 2 columns
+    row_height = box.shape[0] // 6
+    col_width = box.shape[1] // 2
+    cells = []
+
+    for row in range(6):
+        for col in range(2):
+            y1 = row * row_height
+            y2 = (row + 1) * row_height
+            x1 = col * col_width
+            x2 = (col + 1) * col_width
+            cell = box[y1:y2, x1:x2]
+            cells.append(cell)
+
+    return cells
+
+
+
+
+
+def calculate_grade_Redaction(image_path):
+    # Step 1: Load the image
+    image = cv2.imread(image_path)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Step 2: Detect and delete the barcode from the image
+    barcodes = pyzbar.decode(image)
+    for barcode in barcodes:
+        (x, y, w, h) = barcode.rect
+        image = cv2.rectangle(image, (x, y), (x + w, y + h), (255, 255, 255), -1)
+
+    # Step 3: Find the box with the biggest contour
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edged = cv2.Canny(blurred, 50, 200)
+    contours, _ = cv2.findContours(edged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    largest_contour = max(contours, key=cv2.contourArea)
+    x, y, w, h = cv2.boundingRect(largest_contour)
+
+    # Step 4: Divide that box into 12 cells: 6 rows and 2 columns
+    cell_width = w // 2
+    cell_height = h // 6
+    cells = [
+        (x + cell_width * col, y + cell_height * row, cell_width, cell_height)
+        for row in range(6)
+        for col in range(2)
+    ]
+
+    # Step 5: Loop over those cells and test if they are black or white
+    grade = 0
+    scale = [0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+    for i, cell in enumerate(cells):
+        if cell_is_black(cell, gray):
+            grade += scale[i]
+
+    return grade
+
+
+def cell_is_black(cell, gray):
+    x, y, w, h = cell
+    cell_image = gray[y:y+h, x:x+w]
+    avg_color_per_row = np.average(cell_image, axis=0)
+    avg_color = np.average(avg_color_per_row, axis=0)
+
+    if avg_color < 128:
+        return True
+    return False
