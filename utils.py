@@ -479,10 +479,6 @@ def calculate_grade_Redaction(image_path):
     scale = [1, 2, 3, 4, 5, 0.25, 6, 7, 8, 9, 10, 0.5]
 
     for i, cell in enumerate(cells):
-        # save the cell image for debugging
-        x, y, w, h = cell
-        cell_image = image[y:y+h, x:x+w]
-        cv2.imwrite(f'cell_{i}.png', cell_image)
         if cell_is_black(cell, gray):
             grade += scale[i]
 
